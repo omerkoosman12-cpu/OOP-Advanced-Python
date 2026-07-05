@@ -1,0 +1,236 @@
+import json
+
+class User:
+    def __init__(self, user_id, name):
+        self.user_id = user_id
+        self.name = name
+
+    def __str__(self):
+        return f"User ID: {self.user_id}, Name: {self.name}"
+
+    def to_dict(self):
+        return {'user_id': self.user_id, 'name': self.name}
+class Student(User):
+    def __init__(self, user_id, name):
+        super().__init__(user_id, name)
+        self.courses = {}
+
+    def enroll_course(self, course_code):
+        if course_code not in self.courses:
+            self.courses[course_code] = []
+            return True
+        return False # Already enrolled
+
+    def add_grade(self, course_code, grade):
+        if course_code in self.courses:
+            self.courses[course_code].append(grade)
+            return True
+        return False # Not enrolled in this course
+
+    def get_grades(self, course_code):
+        return self.courses.get(course_code, [])
+
+    def __str__(self):
+        return f"Student - {super().__str__()}, Courses: {list(self.courses.keys())}"
+
+    def to_dict(self):
+        data = super().to_dict()
+        data['type'] = 'Student'
+        data['courses'] = self.courses
+        return data
+
+class Teacher(User):
+    def __init__(self, user_id, name, department):
+        super().__init__(user_id, name)
+        self.department = department
+        self.taught_courses = []
+
+    def assign_course(self, course_code):
+        if course_code not in self.taught_courses:
+            self.taught_courses.append(course_code)
+            return True
+        return False
+
+    def __str__(self):
+        return f"Teacher - {super().__str__()}, Department: {self.department}, Taught Courses: {self.taught_courses}"
+
+    def to_dict(self):
+        data = super().to_dict()
+        data['type'] = 'Teacher'
+        data['department'] = self.department
+        data['taught_courses'] = self.taught_courses
+        return data
+class Course:
+    def __init__(self, course_code, name, teacher_id=None):
+        self.course_code = course_code
+        self.name = name
+        self.teacher_id = teacher_id
+
+    def assign_teacher(self, teacher_id):
+        self.teacher_id = teacher_id
+
+    def __str__(self):
+        return f"Course Code: {self.course_code}, Name: {self.name}, Teacher ID: {self.teacher_id if self.teacher_id else 'Unassigned'}"
+
+    def to_dict(self):
+        return {
+            'course_code': self.course_code,
+            'name': self.name,
+            'teacher_id': self.teacher_id
+        }
+class GradeManagementSystem:
+    def __init__(self, data_file='grade_system_data.json'):
+        self.students = {}
+        self.teachers = {}
+        self.courses = {}
+        self.data_file = data_file
+        self.load_data()
+
+    def add_student(self, student):
+        if isinstance(student, Student):
+            self.students[student.user_id] = student
+            return True
+        return False
+
+    def add_teacher(self, teacher):
+        if isinstance(teacher, Teacher):
+            self.teachers[teacher.user_id] = teacher
+            return True
+        return False
+
+    def add_course(self, course):
+        if isinstance(course, Course):
+            self.courses[course.course_code] = course
+            return True
+        return False
+
+    def enroll_student_in_course(self, student_id, course_code):
+        student = self.students.get(student_id)
+        course = self.courses.get(course_code)
+        if student and course:
+            return student.enroll_course(course_code)
+        return False
+
+    def assign_teacher_to_course(self, teacher_id, course_code):
+        teacher = self.teachers.get(teacher_id)
+        course = self.courses.get(course_code)
+        if teacher and course:
+            course.assign_teacher(teacher_id)
+            teacher.assign_course(course_code)
+            return True
+        return False
+
+    def record_grade(self, student_id, course_code, grade):
+        student = self.students.get(student_id)
+        if student:
+            return student.add_grade(course_code, grade)
+        return False
+
+    def get_student_grades(self, student_id, course_code):
+        student = self.students.get(student_id)
+        if student:
+            return student.get_grades(course_code)
+        return []
+
+    def save_data(self):
+        data = {
+            'students': {uid: student.to_dict() for uid, student in self.students.items()},
+            'teachers': {uid: teacher.to_dict() for uid, teacher in self.teachers.items()},
+            'courses': {ccode: course.to_dict() for ccode, course in self.courses.items()}
+        }
+        with open(self.data_file, 'w') as f:
+            json.dump(data, f, indent=4)
+        print(f"Data saved to {self.data_file}")
+
+    def load_data(self):
+        try:
+            with open(self.data_file, 'r') as f:
+                data = json.load(f)
+                
+                # Load students and their courses/grades
+                self.students = {}
+                for uid, s_data in data['students'].items():
+                    student = Student(s_data['user_id'], s_data['name'])
+                    student.courses = s_data['courses'] # Directly assign the loaded courses and grades
+                    self.students[uid] = student
+
+                # Load teachers
+                self.teachers = {uid: Teacher(t['user_id'], t['name'], t['department']) for uid, t in data['teachers'].items()}
+                for uid, t_data in data['teachers'].items():
+                    self.teachers[uid].taught_courses = t_data['taught_courses']
+
+                # Load courses
+                self.courses = {ccode: Course(c['course_code'], c['name'], c['teacher_id']) for ccode, c in data['courses'].items()}
+            print(f"Data loaded from {self.data_file}")
+        except FileNotFoundError:
+            print("No existing data file found. Starting with empty system.")
+        except json.JSONDecodeError:
+            print("Error decoding JSON. Starting with empty system.")
+# --- Demonstration of the Grade Management System ---
+
+# Initialize the system
+gms = GradeManagementSystem()
+
+# Add users and courses
+student1 = Student('S001', 'Alice Smith')
+student2 = Student('S002', 'Bob Johnson')
+teacher1 = Teacher('T001', 'Prof. Davis', 'Computer Science')
+teacher2 = Teacher('T002', 'Dr. Evans', 'Mathematics')
+course1 = Course('CS101', 'Introduction to Programming')
+course2 = Course('MA201', 'Calculus I')
+
+gms.add_student(student1)
+gms.add_student(student2)
+gms.add_teacher(teacher1)
+gms.add_teacher(teacher2)
+gms.add_course(course1)
+gms.add_course(course2)
+
+# Enroll students in courses
+gms.enroll_student_in_course('S001', 'CS101')
+gms.enroll_student_in_course('S002', 'CS101')
+gms.enroll_student_in_course('S001', 'MA201')
+
+# Assign teachers to courses
+gms.assign_teacher_to_course('T001', 'CS101')
+gms.assign_teacher_to_course('T002', 'MA201')
+
+# Record grades (polymorphism - add_grade called on Student object)
+gms.record_grade('S001', 'CS101', 85)
+gms.record_grade('S001', 'CS101', 90)
+gms.record_grade('S002', 'CS101', 78)
+gms.record_grade('S001', 'MA201', 92)
+
+# Display information using __str__
+print("\n--- System State ---")
+for s_id, student in gms.students.items():
+    print(student)
+    print(f"  CS101 Grades: {gms.get_student_grades(s_id, 'CS101')}")
+    print(f"  MA201 Grades: {gms.get_student_grades(s_id, 'MA201')}")
+
+for t_id, teacher in gms.teachers.items():
+    print(teacher)
+
+for c_code, course in gms.courses.items():
+    print(course)
+
+# Save data to file
+gms.save_data()
+
+print("\n--- Reloading System from File ---")
+# Create a new system instance to demonstrate loading
+new_gms = GradeManagementSystem()
+
+# Display reloaded information
+print("\n--- Reloaded System State ---")
+for s_id, student in new_gms.students.items():
+    print(student)
+    print(f"  CS101 Grades: {new_gms.get_student_grades(s_id, 'CS101')}")
+    print(f"  MA201 Grades: {new_gms.get_student_grades(s_id, 'MA201')}")
+
+for t_id, teacher in new_gms.teachers.items():
+    print(teacher)
+
+for c_code, course in new_gms.courses.items():
+    print(course)
+
