@@ -1,0 +1,119 @@
+import re
+
+class Account:
+    def __init__(self, account_number, initial_balance=0):
+        if not self._validate_account_number(account_number):
+            raise ValueError("Invalid account number format.")
+        self.__account_number = account_number # Encapsulated
+        self.__balance = initial_balance # Encapsulated
+
+    def _validate_account_number(self, account_number):
+        # Example: Account number must be 10 digits
+        return re.fullmatch(r'^[0-9]{10}$', account_number) is not None
+
+    def deposit(self, amount):
+        if amount > 0:
+            self.__balance += amount
+            print(f"Deposited ${amount}. New balance: ${self.__balance}")
+        else:
+            print("Deposit amount must be positive.")
+
+    def withdraw(self, amount):
+        # This method will be overridden by child classes
+        if amount > 0 and self.__balance >= amount:
+            self.__balance -= amount
+            print(f"Withdrew ${amount}. New balance: ${self.__balance}")
+            return True
+        elif amount <= 0:
+            print("Withdrawal amount must be positive.")
+        else:
+            print("Insufficient funds.")
+        return False
+
+    def get_balance(self):
+        return self.__balance
+
+    def get_account_number(self):
+        return self.__account_number
+
+    def __str__(self):
+        return f"Account Number: {self.__account_number}, Balance: ${self.__balance:.2f}"
+class SavingsAccount(Account):
+    def __init__(self, account_number, initial_balance=0, min_balance=100):
+        super().__init__(account_number, initial_balance)
+        self.__min_balance = min_balance # Encapsulated
+
+    def withdraw(self, amount):
+        if amount <= 0:
+            print("Withdrawal amount must be positive.")
+            return False
+        if self.get_balance() - amount < self.__min_balance:
+            print(f"Withdrawal denied: Minimum balance of ${self.__min_balance} must be maintained.")
+            return False
+        return super().withdraw(amount)
+
+    def __str__(self):
+        return f"Savings Account - {super().__str__()}, Min Balance: ${self.__min_balance:.2f}"
+class CurrentAccount(Account):
+    def __init__(self, account_number, initial_balance=0, overdraft_limit=500):
+        super().__init__(account_number, initial_balance)
+        self.__overdraft_limit = overdraft_limit # Encapsulated
+
+    def withdraw(self, amount):
+        if amount <= 0:
+            print("Withdrawal amount must be positive.")
+            return False
+        
+        current_balance = self.get_balance()
+        # Current account can go into overdraft up to the limit
+        if current_balance - amount >= -self.__overdraft_limit:
+            self._deduct_balance(amount) # Use the protected method to update balance
+            print(f"Withdrew ${amount}. New balance: ${self.get_balance()}")
+            return True
+        else:
+            print(f"Withdrawal denied: Exceeds overdraft limit of ${self.__overdraft_limit}.")
+            return False
+
+    def __str__(self):
+        return f"Current Account - {super().__str__()}, Overdraft Limit: ${self.__overdraft_limit:.2f}"
+# Test Account Number Validation
+try:
+    invalid_acc = Account('12345', 100)
+except ValueError as e:
+    print(f"Error creating account: {e}")
+
+valid_acc = Account('1234567890', 100)
+print(f"Valid Account: {valid_acc.get_account_number()}")
+
+# Create accounts
+savings_acc = SavingsAccount('1122334455', 500, 100)
+current_acc = CurrentAccount('9988776655', 200, 500)
+
+print("\n--- Initial Account States ---")
+print(savings_acc)
+print(current_acc)
+
+print("\n--- Savings Account Transactions ---")
+savings_acc.deposit(200)
+savings_acc.withdraw(450) # Should be denied (balance would be 250 - 450 = -200, below min_balance of 100)
+savings_acc.withdraw(100) # Should be allowed (balance would be 700 - 100 = 600, above min_balance)
+savings_acc.withdraw(550) # Should be denied (balance would be 600 - 550 = 50, below min_balance of 100)
+
+print("\n--- Current Account Transactions ---")
+current_acc.deposit(300)
+current_acc.withdraw(400) # Should be allowed (balance 500 - 400 = 100)
+current_acc.withdraw(300) # Should be allowed (balance 100 - 300 = -200, within overdraft limit of 500)
+current_acc.withdraw(400) # Should be denied (balance -200 - 400 = -600, exceeds overdraft limit of 500)
+
+print("\n--- Final Account States ---")
+print(savings_acc)
+print(current_acc)
+
+# Demonstrate polymorphism
+def display_account_info(account):
+    print(f"Account Details: {account}")
+
+print("\n--- Polymorphism Demonstration ---")
+display_account_info(savings_acc)
+display_account_info(current_acc)
+
