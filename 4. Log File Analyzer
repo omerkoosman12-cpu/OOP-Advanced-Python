@@ -1,0 +1,112 @@
+import re
+import os
+
+class LogAnalyzer:
+    def __init__(self, log_file_path):
+        self.log_file_path = log_file_path
+        # Regex patterns to extract information. Adjust as needed for specific log formats.
+        # Example patterns:
+        # Timestamp: YYYY-MM-DD HH:MM:SS
+        # Error code: e.g., ERR-XXXX, HTTP status codes
+        # IP Address: IPv4 address
+
+        self.timestamp_pattern = re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
+        self.error_code_pattern = re.compile(r'(ERR-\d{4}|HTTP\sSTATUS:\s\d{3}|ERROR|FAILED)')
+        self.ip_address_pattern = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
+
+    def _read_log_lines(self):
+        """Generator to read a log file line by line."""
+        if not os.path.exists(self.log_file_path):
+            raise FileNotFoundError(f"Log file not found at {self.log_file_path}")
+        with open(self.log_file_path, 'r') as f:
+            for line in f:
+                yield line.strip()
+
+    def analyze_log(self):
+        """Analyzes the log file and extracts relevant information."""
+        extracted_data = []
+        for line in self._read_log_lines():
+            timestamp_match = self.timestamp_pattern.search(line)
+            error_code_match = self.error_code_pattern.search(line)
+            ip_address_match = self.ip_address_pattern.search(line)
+
+            data_point = {
+                'line': line,
+                'timestamp': timestamp_match.group(1) if timestamp_match else 'N/A',
+                'error_code': error_code_match.group(0) if error_code_match else 'N/A',
+                'ip_address': ip_address_match.group(0) if ip_address_match else 'N/A'
+            }
+            extracted_data.append(data_point)
+        return extracted_data
+
+    def generate_summary_report(self, output_file='log_summary.txt'):
+        """Generates a summary report and saves it to an output file."""
+        analysis_results = self.analyze_log()
+
+        if not analysis_results:
+            print("No data to report.")
+            return
+
+        # Count occurrences of error codes and IP addresses
+        error_counts = {}
+        ip_counts = {}
+        for item in analysis_results:
+            if item['error_code'] != 'N/A':
+                error_counts[item['error_code']] = error_counts.get(item['error_code'], 0) + 1
+            if item['ip_address'] != 'N/A':
+                ip_counts[item['ip_address']] = ip_counts.get(item['ip_address'], 0) + 1
+
+        with open(output_file, 'w') as f:
+            f.write("--- Log Analysis Summary Report ---\n\n")
+            f.write("Total Log Lines Processed: {}\n".format(len(analysis_results)))
+
+            f.write("\n--- Error Code Frequencies ---\n")
+            if error_counts:
+                for error, count in sorted(error_counts.items(), key=lambda item: item[1], reverse=True):
+                    f.write(f"  {error}: {count} occurrences\n")
+            else:
+                f.write("  No error codes found.\n")
+
+            f.write("\n--- Top IP Address Frequencies ---\n")
+            if ip_counts:
+                for ip, count in sorted(ip_counts.items(), key=lambda item: item[1], reverse=True)[:5]: # Top 5 IPs
+                    f.write(f"  {ip}: {count} occurrences\n")
+            else:
+                f.write("  No IP addresses found.\n")
+
+            f.write("\n--- All Extracted Data (Detailed) ---\n")
+            for item in analysis_results:
+                f.write(f"Line: {item['line']}\n")
+                f.write(f"  Timestamp: {item['timestamp']}, Error Code: {item['error_code']}, IP: {item['ip_address']}\n")
+                f.write("---\n")
+        print(f"Summary report saved to {output_file}")
+# Create a dummy log file for demonstration
+dummy_log_content = [
+    "2023-10-26 10:00:01 INFO User 192.168.1.1 logged in.",
+    "2023-10-26 10:00:05 ERROR Failed to connect to DB from 10.0.0.5 ERR-0001",
+    "2023-10-26 10:00:10 WARNING Disk usage high on server 172.16.0.10.",
+    "2023-10-26 10:00:15 INFO User 192.168.1.2 logged out.",
+    "2023-10-26 10:00:20 ERROR Invalid request from 10.0.0.5 HTTP STATUS: 400",
+    "2023-10-26 10:00:25 DEBUG Processing data for 192.168.1.1",
+    "2023-10-26 10:00:30 ERROR Timeout connecting to API from 10.0.0.5 ERR-0002",
+    "2023-10-26 10:00:35 INFO Another log entry from 192.168.1.1",
+    "2023-10-26 10:00:40 FAILED Authentication attempt from 10.0.0.6 HTTP STATUS: 401"
+]
+
+log_file_name = 'server_access.log'
+with open(log_file_name, 'w') as f:
+    for line in dummy_log_content:
+        f.write(line + '\n')
+
+print(f"Dummy log file '{log_file_name}' created.\n")
+
+# Initialize and run the analyzer
+log_analyzer = LogAnalyzer(log_file_name)
+
+# Generate and save the summary report
+output_report_name = 'analysis_report.txt'
+log_analyzer.generate_summary_report(output_report_name)
+
+print("\n--- Reading the generated summary report ---")
+with open(output_report_name, 'r') as f:
+    print(f.read())
