@@ -1,0 +1,140 @@
+import csv
+import datetime
+
+# Decorator for logging salary computations
+def log_salary_computation(func):
+    def wrapper(employee, *args, **kwargs):
+        start_time = datetime.datetime.now()
+        salary = func(employee, *args, **kwargs)
+        end_time = datetime.datetime.now()
+        print(f"[LOG] Salary for {employee.name} (ID: {employee.employee_id}) computed: {salary:.2f}. Duration: {end_time - start_time}")
+        return salary
+    return wrapper
+
+class Employee:
+    def __init__(self, employee_id, name):
+        self.employee_id = employee_id
+        self.name = name
+
+    def calculate_salary(self):
+        raise NotImplementedError("Subclasses must implement calculate_salary method")
+
+    def __str__(self):
+        return f"Employee ID: {self.employee_id}, Name: {self.name}"
+
+    def to_dict(self):
+        return {
+            'employee_id': self.employee_id,
+            'name': self.name,
+            'type': self.__class__.__name__
+        }
+class FullTimeEmployee(Employee):
+    def __init__(self, employee_id, name, monthly_salary):
+        super().__init__(employee_id, name)
+        self.monthly_salary = monthly_salary
+
+    @log_salary_computation
+    def calculate_salary(self):
+        return self.monthly_salary
+
+    def __str__(self):
+        return f"FullTimeEmployee - {super().__str__()}, Monthly Salary: ${self.monthly_salary:.2f}"
+
+    def to_dict(self):
+        data = super().to_dict()
+        data['monthly_salary'] = self.monthly_salary
+        return data
+class PartTimeEmployee(Employee):
+    def __init__(self, employee_id, name, hourly_rate, hours_worked):
+        super().__init__(employee_id, name)
+        self.hourly_rate = hourly_rate
+        self.hours_worked = hours_worked
+
+    @log_salary_computation
+    def calculate_salary(self):
+        return self.hourly_rate * self.hours_worked
+
+    def __str__(self):
+        return f"PartTimeEmployee - {super().__str__()}, Hourly Rate: ${self.hourly_rate:.2f}, Hours Worked: {self.hours_worked}"
+
+    def to_dict(self):
+        data = super().to_dict()
+        data['hourly_rate'] = self.hourly_rate
+        data['hours_worked'] = self.hours_worked
+        return data
+class PayrollSystem:
+    def __init__(self):
+        self.employees = []
+
+    def add_employee(self, employee):
+        if isinstance(employee, Employee):
+            self.employees.append(employee)
+            return True
+        return False
+
+    def calculate_total_payroll(self):
+        total_payroll = 0
+        print("\n--- Calculating Total Payroll ---")
+        for employee in self.employees:
+            salary = employee.calculate_salary()
+            print(f"  {employee.name} (ID: {employee.employee_id}): ${salary:.2f}")
+            total_payroll += salary
+        print(f"Total Payroll: ${total_payroll:.2f}")
+        return total_payroll
+
+    def export_payroll_to_csv(self, filename='payroll_report.csv'):
+        if not self.employees:
+            print("No employees to export.")
+            return
+
+        with open(filename, 'w', newline='') as csvfile:
+            fieldnames = ['employee_id', 'name', 'type', 'salary', 'details']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            writer.writeheader()
+            for employee in self.employees:
+                salary = employee.calculate_salary() # Recalculate salary for export
+                details = ""
+                if isinstance(employee, FullTimeEmployee):
+                    details = f"Monthly Salary: {employee.monthly_salary}"
+                elif isinstance(employee, PartTimeEmployee):
+                    details = f"Hourly Rate: {employee.hourly_rate}, Hours Worked: {employee.hours_worked}"
+
+                writer.writerow({
+                    'employee_id': employee.employee_id,
+                    'name': employee.name,
+                    'type': employee.__class__.__name__,
+                    'salary': f"{salary:.2f}",
+                    'details': details
+                })
+        print(f"Payroll data exported to {filename}")
+
+    def __str__(self):
+        return f"Payroll System with {len(self.employees)} employees."
+# Create employees
+emp1 = FullTimeEmployee('FT001', 'John Doe', 5000)
+emp2 = PartTimeEmployee('PT001', 'Jane Smith', 25, 160)
+emp3 = FullTimeEmployee('FT002', 'Peter Jones', 6000)
+emp4 = PartTimeEmployee('PT002', 'Alice Brown', 30, 120)
+
+# Create payroll system
+payroll_system = PayrollSystem()
+
+# Add employees to the system
+payroll_system.add_employee(emp1)
+payroll_system.add_employee(emp2)
+payroll_system.add_employee(emp3)
+payroll_system.add_employee(emp4)
+
+print(payroll_system)
+
+# Calculate and display total payroll (polymorphism and decorator in action)
+payroll_system.calculate_total_payroll()
+
+# Export payroll data to a CSV file
+payroll_system.export_payroll_to_csv()
+
+print("\n--- Reading Exported CSV --- ")
+# Verify content of the exported CSV file
+with open('payroll_report.csv', 'r') as f:
+    print(f.read())
